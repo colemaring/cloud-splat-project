@@ -1,0 +1,9 @@
+# Python deps for the GPU worker pipeline.
+# torch / torchvision are NOT pinned here: install the CUDA build that matches
+# the AMI's CUDA runtime (see scripts/build_ami.sh) BEFORE installing this file.
+boto3>=1.34
+numpy>=1.24
+pillow>=10.0
+opencv-python>=4.8
+ultralytics>=8.1            # YOLOv8 person segmentation (mask_people_yolo.py)
+plyfile>=1.0               # PLY read/write if the pipeline touches point clouds

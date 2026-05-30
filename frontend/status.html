@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cloud Splat — Job status</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <nav>
+    <span class="brand">☁️ Cloud Splat</span>
+    <a href="/">New capture</a>
+    <a href="/gallery">Gallery</a>
+  </nav>
+  <main>
+    <h1>Building your splat</h1>
+    <p class="sub">Job <code id="jobid"></code> · <span id="elapsed">—</span></p>
+
+    <div class="card">
+      <ul class="stages" id="stages"></ul>
+    </div>
+
+    <div id="actions"></div>
+    <div class="msg error" id="error"></div>
+  </main>
+  <script type="module" src="/src/status.js"></script>
+</body>
+</html>

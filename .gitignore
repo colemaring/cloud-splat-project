@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
+
+# Lambda build artifacts
+terraform/modules/lambda/build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

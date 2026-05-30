@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cloud Splat — Viewer</title>
+  <link rel="stylesheet" href="/src/style.css" />
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    #viewer { position: fixed; inset: 0; }
+    #overlay {
+      position: fixed; left: 16px; bottom: 16px; z-index: 10;
+      background: rgba(10,12,16,0.72); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.9rem; font-size: 0.85rem; color: var(--text);
+      pointer-events: none; line-height: 1.5;
+    }
+    #overlay b { color: var(--accent); }
+    #topbar {
+      position: fixed; top: 12px; left: 12px; z-index: 10; display: flex; gap: 1rem; align-items: center;
+      background: rgba(10,12,16,0.72); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.5rem 0.9rem;
+    }
+    #topbar a { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+    #topbar a:hover { color: var(--text); }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      z-index: 9; color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div id="viewer"></div>
+  <div id="topbar">
+    <a href="/gallery">← Gallery</a>
+    <span id="title" style="color:var(--muted);font-family:ui-monospace,monospace;font-size:0.85rem"></span>
+  </div>
+  <div id="loading">Loading splat…</div>
+  <div id="overlay">
+    <div><b>WASD</b> move · <b>Q/E</b> down/up</div>
+    <div><b>Shift</b> sprint · <b>Click</b> to look · <b>Esc</b> to release</div>
+  </div>
+  <script type="module" src="/src/viewer.js"></script>
+</body>
+</html>

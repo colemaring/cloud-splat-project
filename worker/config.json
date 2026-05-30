@@ -1,0 +1,16 @@
+{
+  "_comment": "Linux worker tool paths. These point at where scripts/build_ami.sh installs each tool on the golden AMI. constants.py and pipeline_lichtfeld.py read this file from the worker/ root.",
+  "paths": {
+    "ffmpeg_exe": "ffmpeg",
+    "colmap_exe": "colmap",
+    "lichtfeld_exe": "/opt/lichtfeld/bin/LichtFeld-Studio",
+    "exiftool_exe": "exiftool",
+    "mediasdk_root": "/opt/mediasdk",
+    "mediasdk_exe_name": "MediaSDKTest"
+  },
+  "defaults": {
+    "frame_interval": 0.5,
+    "downscale": 4,
+    "lfs_iters": 7000
+  }
+}

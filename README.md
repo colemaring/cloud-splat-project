@@ -39,12 +39,17 @@ Browser ◀── CloudFront ── S3 (site + /outputs/*.ply)
 ## Deploy
 
 1. **Build the golden GPU AMI** — see [`scripts/README_AMI.md`](scripts/README_AMI.md).
-   Put the AMI id in `terraform/terraform.tfvars`:
+   Put the AMI id in `terraform/terraform.tfvars` (copy from
+   `terraform.tfvars.example`):
    ```hcl
    golden_ami_id = "ami-xxxxxxxxxxxxxxxxx"
    # region = "us-east-1"            # optional
    # worker_instance_type = "g4dn.xlarge"
    ```
+
+   > New AWS accounts have a **0 vCPU quota for G instances**. Request an increase
+   > for *"Running On-Demand G and VT instances"* (≥ 4 vCPUs; `g4dn.xlarge` = 4)
+   > in your region before launching the AMI build instance or any job.
 
 2. **Provision infrastructure**
    ```bash
@@ -55,13 +60,17 @@ Browser ◀── CloudFront ── S3 (site + /outputs/*.ply)
    ```
    Note the outputs: `api_endpoint`, `site_url`, `site_bucket`.
 
-3. **Build + deploy the frontend** (inject the API endpoint at build time)
+3. **Build + deploy the frontend.** One command (reads Terraform outputs, builds
+   with the live API endpoint, syncs to S3, invalidates CloudFront):
+   ```powershell
+   pwsh scripts/deploy.ps1
+   ```
+   Or do it manually:
    ```bash
    cd frontend
    npm install
    VITE_API_BASE="$(terraform -chdir=../terraform output -raw api_endpoint)" npm run build
    aws s3 sync dist/ "s3://$(terraform -chdir=../terraform output -raw site_bucket)/" --delete
-   # (optional) invalidate CloudFront so the new build shows immediately
    ```
 
 4. Open the `site_url`. Upload the `_00_` and `_10_` `.insv` files (skip `_11_`),

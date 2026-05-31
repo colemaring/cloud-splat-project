@@ -13,6 +13,11 @@ output "cdn_domain" {
   value       = module.cdn.distribution_domain
 }
 
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution id (for cache invalidation on redeploy)."
+  value       = module.cdn.distribution_id
+}
+
 output "site_bucket" {
   description = "S3 bucket for the built frontend (aws s3 sync your dist/ here)."
   value       = module.storage.site_bucket_id

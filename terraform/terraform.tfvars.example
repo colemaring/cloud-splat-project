@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+
+# REQUIRED: the golden GPU worker AMI built via scripts/build_ami.sh.
+golden_ami_id = "ami-REPLACE_ME"
+
+# Optional overrides (defaults shown):
+# region                = "us-east-1"
+# worker_instance_type  = "g4dn.xlarge"   # bump to g5.xlarge if High preset OOMs the T4
+# worker_root_volume_gb = 200

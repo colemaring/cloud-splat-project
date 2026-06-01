@@ -5,6 +5,42 @@ Insta360 Linux MediaSDK, a LichtFeld-Studio Linux build, FFmpeg, the Python
 deps, and the worker code. You build this **once** by hand and reference its id
 from Terraform (`golden_ami_id`).
 
+> **A working AMI already exists:** `ami-0122307459cdd469c` (us-east-1, built
+> 2026-06-01). It's referenced in `terraform/terraform.tfvars`. The steps below
+> document how it was built (and how to rebuild). The authoritative, ordered
+> recipe is the numbered scripts in [`scripts/ami/`](ami/) — they reflect what
+> actually worked, which differs from the original monolithic `build_ami.sh`.
+
+## What the real build looks like (lessons learned)
+
+Base: **Ubuntu 22.04** GPU AMI (NOT 24.04). The Insta360 MediaSDK targets CUDA
+11.7 / gcc-11 (= 22.04), and a 22.04 "Deep Learning Base" AMI ships CUDA 12.4 +
+gcc-11, which both COLMAP and the rest build against.
+
+- **Insta360 MediaSDK** is shipped as `libMediaSDK-dev-*.deb` + example *source*,
+  not a ready binary. Install the `.deb` (`apt install ./libMediaSDK-dev*.deb`,
+  puts `libMediaSDK.so` in `/usr/lib`, header in `/usr/include`), then **compile**
+  `example/main.cc` into the CLI: `g++ main.cc -std=c++11 -lMediaSDK -lpthread`.
+  Its CLI flags match the Windows `MediaSDKTest` (`-inputs -output -stitch_type
+  aistitch -output_size -model_root_dir -enable_stitchfusion`). Models go in
+  `/opt/mediasdk/models`. (`scripts/ami/01_mediasdk.sh`)
+- **COLMAP 3.10** built with `-DCMAKE_CUDA_ARCHITECTURES=75` against CUDA 12.4.
+  (`02_colmap.sh`)
+- **Python venv**: torch `cu121` + the worker `requirements.txt` + YOLO26-s.
+  (`03_python.sh`)
+- **LichtFeld-Studio v0.5.1** is the heavy one — there is **no Linux binary**, and
+  it needs **CUDA 12.8**, **gcc-14**, **CMake 4**, **vcpkg** (OpenUSD, OpenImageIO,
+  ffmpeg, SDL3, assimp, rmlui…) and **LibTorch 2.7.0+cu128**. The vcpkg tree alone
+  is ~2 h on 4 vCPUs. Two gotchas: init the `external/libvterm` git submodule, and
+  the CMake check hard-requires driver ≥570 — we patch that one line and run CUDA
+  12.8 on the 550 driver via CUDA-12 minor-version compatibility (+ `cuda-compat-12-8`
+  as backup; verified with a real libtorch CUDA matmul). Installed behind a wrapper
+  at `/opt/lichtfeld/bin/LichtFeld-Studio` that sets `LD_LIBRARY_PATH`.
+  (`04`–`12_*.sh`)
+
+To rebuild from scratch, run `scripts/ami/01..13_*.sh` in order on a fresh 22.04
+GPU instance (after uploading the worker code + the Insta360 Linux MediaSDK zip).
+
 ## Steps
 
 1. **Launch a base instance**

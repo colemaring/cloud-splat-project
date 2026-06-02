@@ -102,31 +102,52 @@ def _build_pipeline_cmd(front: Path, back: Path, out_dir: Path, preset: str, mas
     return cmd
 
 
-def _run_pipeline(cmd: list[str], job: JobStatus) -> None:
-    """Run the pipeline, mapping ##STAGE markers to DynamoDB updates.
+def _pipeline_env() -> dict:
+    """Environment for the pipeline subprocess.
+
+    Prepends the CUDA forward-compat dir to LD_LIBRARY_PATH so COLMAP (and any
+    other CUDA tool that inherits this env) uses the cuda-compat libcuda. The
+    AMI's CUDA 12.8 toolkit links libcudart that the 550-series driver rejects
+    natively ("unsupported display driver / cuda driver combination"); the
+    compat libcuda bridges it on the T4. MediaSDK and the LichtFeld wrapper set
+    their own LD_LIBRARY_PATH on top of this.
+    """
+    env = os.environ.copy()
+    compat = "/usr/local/cuda-12.8/compat"
+    existing = env.get("LD_LIBRARY_PATH", "")
+    env["LD_LIBRARY_PATH"] = compat + (os.pathsep + existing if existing else "")
+    return env
+
+
+def _run_pipeline(cmd: list[str], job: JobStatus, log_path: Path) -> None:
+    """Run the pipeline, mapping ##STAGE markers to DynamoDB updates and writing
+    the full stdout/stderr to ``log_path`` (uploaded to S3 for debugging).
 
     Raises RuntimeError on nonzero exit (with an OOM-specific message when the
     log shows a memory failure).
     """
     print(f"[worker] running: {' '.join(cmd)}")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     proc = subprocess.Popen(
         cmd, cwd=str(WORKER_DIR), stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, bufsize=1,
+        stderr=subprocess.STDOUT, text=True, bufsize=1, env=_pipeline_env(),
     )
     assert proc.stdout is not None
     saw_oom = False
     tail: list[str] = []
-    for line in proc.stdout:
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        tail.append(line)
-        if len(tail) > 50:
-            tail.pop(0)
-        m = STAGE_RE.search(line)
-        if m:
-            job.set_stage(m.group(1))
-        if not saw_oom and any(mk in line for mk in _OOM_MARKERS):
-            saw_oom = True
+    with open(log_path, "w", encoding="utf-8") as lf:
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            lf.write(line)
+            tail.append(line)
+            if len(tail) > 50:
+                tail.pop(0)
+            m = STAGE_RE.search(line)
+            if m:
+                job.set_stage(m.group(1))
+            if not saw_oom and any(mk in line for mk in _OOM_MARKERS):
+                saw_oom = True
     rc = proc.wait()
     if rc != 0:
         if saw_oom:
@@ -166,7 +187,10 @@ def main() -> int:
     s3 = boto3.client("s3", region_name=region)
     job = JobStatus(table, job_id, region=region)
 
+    out_dir = scratch / job_id / "out"
+    log_path = scratch / job_id / "pipeline.log"
     front_key = back_key = None
+    succeeded = False
     try:
         job.set_stage("booting", status="RUNNING")
         item = job.get()
@@ -179,11 +203,10 @@ def main() -> int:
 
         job.set_stage("downloading")
         in_dir = scratch / job_id / "in"
-        out_dir = scratch / job_id / "out"
         front, back = _download_inputs(s3, uploads_bucket, front_key, back_key, in_dir)
 
         cmd = _build_pipeline_cmd(front, back, out_dir, preset, masking)
-        _run_pipeline(cmd, job)
+        _run_pipeline(cmd, job, log_path)
 
         ply = _find_output_ply(out_dir)
         job.set_stage("uploading_result")
@@ -200,6 +223,7 @@ def main() -> int:
             ExpressionAttributeValues={":k": out_key},
         )
         job.set_stage("done", status="SUCCEEDED")
+        succeeded = True
         print("[worker] job complete")
         return 0
 
@@ -212,16 +236,29 @@ def main() -> int:
         return 1
 
     finally:
-        # Delete the input .insv — they're no longer needed and we don't want to
-        # pay to store them. Best-effort; never block shutdown on this.
-        for key in (front_key, back_key):
-            if not key:
-                continue
+        # Always persist logs to S3 so failures are debuggable after the
+        # instance self-terminates (outputs/logs/{jobId}/).
+        for src, name in ((log_path, "pipeline.log"),
+                          (out_dir / "colmap" / "colmap.log", "colmap.log"),
+                          (out_dir / "lichtfeld_train.log", "lichtfeld_train.log")):
             try:
-                s3.delete_object(Bucket=uploads_bucket, Key=key)
-                print(f"[worker] deleted input s3://{uploads_bucket}/{key}")
+                if src.exists():
+                    s3.upload_file(str(src), outputs_bucket, f"logs/{job_id}/{name}")
             except Exception:
                 traceback.print_exc()
+
+        # Delete the input .insv only on success. On failure keep them so the
+        # job can be reproduced/debugged (the uploads bucket lifecycle expires
+        # them after 2 days regardless).
+        if succeeded:
+            for key in (front_key, back_key):
+                if not key:
+                    continue
+                try:
+                    s3.delete_object(Bucket=uploads_bucket, Key=key)
+                    print(f"[worker] deleted input s3://{uploads_bucket}/{key}")
+                except Exception:
+                    traceback.print_exc()
         if self_terminate:
             print("[worker] shutting down (instance terminates on shutdown)")
             sys.stdout.flush()
